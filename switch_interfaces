@@ -1,0 +1,187 @@
+#! /usr/bin/env bash
+
+TIMEOUT=${TIMEOUT:-3s}
+COLOR=${COLOR:-auto}
+CONF=~/.switch_interfaces.conf
+APP_NAME="$(basename "$0")"
+
+# Turn on coloring only if the current shell is interactive (or COLOR always)
+if [ -t 1 ] || [ "$COLOR" = always ]; then
+    gray='\033[90m'
+    red='\033[91m'
+    green='\033[92m'
+    yel='\033[93m'
+    end='\033[0m'
+fi
+
+usage() {
+    cat <<USAGE
+Usage: $APP_NAME (primary | secondary)
+       $APP_NAME --status
+       $APP_NAME --help
+USAGE
+}
+show_example_conf() {
+    cat <<EOF
+# Set the primary and secondary interfaces you want to switch back and forth.
+# After the comma ',<service>' means that a service (here, cntlm and squid) can
+# be associated so that when the interface is up, the service is launched. You
+# can skip this though (and remove the comma). Uncomment to enable
+
+# Example 1:
+# primary=eth1,cntlm
+# secondary=enp0s3,squid
+
+# Example 2:
+# primary=eth1
+# secondary=enp0s3
+EOF
+}
+help() {
+    cat <<HELP
+A small script for helping me switch interfaces + local proxies.
+
+$(usage)
+
+With:
+    (primary, secondary) are configured $CONF,
+    which should look like something like (in brackets = optionnal service
+    name that should be launched when this interface goes up):
+
+    primary=eth1[,cntlm]
+    secondary=enp0s3[,squid]
+
+Environement variables:
+  COLOR = (auto | always) [value: auto]
+    In auto mode, colors will be removed when launched from a tty instead of
+    an interactive shell.
+  TIMEOUT = 1s, 2s, 1m... [value: $TIMEOUT_DEFAULT]
+    During connexion or deconnexion using nmcli, the tool may get stuck/stall.
+
+Example of $CONF:
+
+$(show_example_conf)
+
+Maël Valais, 2018
+HELP
+}
+
+# Some helper functions
+error() {
+    echo -e "${red}error:${end}" "$@" >&2
+}
+info() {
+    echo -e "${yel}info:${end}" "$@"
+}
+warn() {
+    echo -e "${yel}warning:${end}" "$@" >&2
+}
+ok() {
+    echo -e "${green}ok:${end}" "$@"
+}
+
+while [ $# -ne 0 ]; do
+    case $1 in
+    primary | secondary | --status | --edit) mode=$1 ;;
+    --help | -h)
+        help && exit 0
+        ;;
+    esac
+    shift
+done
+
+status() {
+    echo -e "${gray}cntlm:${end}" $(service status cntlm | grep "Active:")
+    echo -e "${gray}squid:${end}" $(service status squid | grep "Active:")
+    echo -e "${gray}PRIMARY_INTF:${end}" $(nmcli device show $PRIMARY_INTF | grep "STATUS")
+    echo -e "${gray}SECONDARY_INTF:${end}" $(nmcli device show $SECONDARY_INTF | grep "STATUS")
+}
+
+# same input as GNU coreutils timeout
+mytimeout() {
+    DURATION=$1 && shift
+    echo $(bash -c "timeout $DURATION $*; echo \$?")
+}
+
+# switch_intf <from_intf> <to_intf>
+switch_intf() {
+    from_intf=$1
+    to_intf=$2
+    if nmcli device show "$from_intf" | grep -q "STATUS.*(disconnected)"; then
+        info "$from_intf already disconnected"
+    elif [ 124 = "$(mytimeout $TIMEOUT nmcli device disconnect "$from_intf")" ]; then
+        error "$from_intf couldn't be disconnected after $TIMEOUT. Is it available?"
+        exit 1
+    else
+        ok "$from_intf has been corectly disconnected"
+    fi
+    if nmcli device show "$to_intf" | grep -q "STATUS.*(connected)"; then
+        warn "$from_intf already connected"
+    elif [ 124 = "$(mytimeout $TIMEOUT nmcli device connect "$to_intf")" ]; then
+        error "$to_intf couldn't be disconnected after $TIMEOUT. Is it available?"
+        exit 1
+    else
+        ok "$to_intf has been corectly connected"
+    fi
+}
+
+switch_service() {
+    if [ -n "$PRIMARY_INTF" ] && [ "$SECONDARY_INTF" ]; then
+        info "switching from service $1 to $2"
+        sudo service "$1" stop
+        sudo service "$2" restart
+    fi
+}
+
+case $mode in
+primary | secondary)
+    if ! [ -f "$HOME/.switch_interfaces.conf" ]; then
+        show_example_conf > $CONF
+        info "'$CONF' wasn't existing, I created an empty one. Now, use:\n\
+    $APP_NAME --edit"
+        exit 0
+    fi
+    if ! grep -q "^primary=" $CONF; then
+        error "the line 'secondary=<interface>[,service]' is missing in conf.\n"
+              "Edit it with:\n"
+              "    $APP_NAME --edit"
+        exit 1
+    fi
+    if ! grep -q "^secondary=" $CONF    ; then
+        error "the line 'secondary=<interface>[,service]' is missing in conf.\n"
+              "Edit it with:\n"
+              "    $APP_NAME --edit"
+        exit 1
+    fi
+
+    PRIMARY_INTF=$(grep "^primary=" $CONF     | cut -d= -f2 | cut -d, -f1)
+    PRIMARY_SERVICE=$(grep "^primary=" $CONF     | cut -d= -f2 | cut -d, -f2)
+    SECONDARY_INTF=$(grep "^secondary=" $CONF     | cut -d= -f2 | cut -d, -f1)
+    SECONDARY_SERVICE=$(grep "^secondary=" $CONF     | cut -d= -f2 | cut -d, -f2)
+    ;;
+esac
+
+set -e # any line that errors will stop the script
+case $mode in
+primary)
+    switch_intf "$SECONDARY_INTF" "$PRIMARY_INTF"
+    switch_service "$SECONDARY_SERVICE" "$PRIMARY_SERVICE"
+    ;;
+secondary)
+    switch_intf "$PRIMARY_INTF" "$SECONDARY_INTF"
+    switch_service "$PRIMARY_SERVICE" "$SECONDARY_SERVICE"
+    ;;
+--status) status ;;
+--edit)
+    EDITOR=${EDITOR:-vim}
+    "$EDITOR" $CONF    
+    exit 0
+    ;;
+*)
+    error "no correct command given."
+    usage
+    exit 124
+    ;;
+esac
+
+exit 0
