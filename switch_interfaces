@@ -4,7 +4,7 @@ TIMEOUT=${TIMEOUT:-3s}
 COLOR=${COLOR:-auto}
 CONF=~/.switch_interfaces.conf
 APP_NAME="$(basename "$0")"
-
+set -x
 # Turn on coloring only if the current shell is interactive (or COLOR always)
 if [ -t 1 ] || [ "$COLOR" = always ]; then
 	gray='\033[90m'
@@ -127,8 +127,9 @@ switch_intf() {
 
 switch_service() {
 	if [ -n "$PRIMARY_INTF" ] && [ "$SECONDARY_INTF" ]; then
-		info "switching from service $1 to $2"
+		info "stopping service $1"
 		sudo service "$1" stop
+		info "starting service $2"
 		sudo service "$2" restart
 	fi
 }
