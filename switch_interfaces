@@ -4,7 +4,7 @@ TIMEOUT=${TIMEOUT:-3s}
 COLOR=${COLOR:-auto}
 CONF=~/.switch_interfaces.conf
 APP_NAME="$(basename "$0")"
-set -x
+
 # Turn on coloring only if the current shell is interactive (or COLOR always)
 if [ -t 1 ] || [ "$COLOR" = always ]; then
 	gray='\033[90m'
