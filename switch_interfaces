@@ -90,11 +90,14 @@ while [ $# -ne 0 ]; do
 	shift
 done
 
+# status <primary_intf> <secondary_intf> [<primary_service> <secondary_service>]
 status() {
-	echo -e "${gray}cntlm:${end}" $(service status cntlm | grep "Active:")
-	echo -e "${gray}squid:${end}" $(service status squid | grep "Active:")
-	echo -e "${gray}PRIMARY_INTF:${end}" $(nmcli device show $PRIMARY_INTF | grep "STATUS")
-	echo -e "${gray}SECONDARY_INTF:${end}" $(nmcli device show $SECONDARY_INTF | grep "STATUS")
+	echo -e "${gray}PRIMARY_INTF:${end}" $(nmcli device show "$1" | grep "STATE")
+	echo -e "${gray}SECONDARY_INTF:${end}" $(nmcli device show "$2" | grep "STATE")
+	if [ -n "$3" ] && [ -n "$4" ]; then
+		echo -e "${gray}cntlm:${end}" $(service $3 status | grep "Active:")
+		echo -e "${gray}squid:${end}" $(service $4 status | grep "Active:")
+	fi
 }
 
 # same input as GNU coreutils timeout
@@ -135,7 +138,7 @@ switch_service() {
 }
 
 case $mode in
-primary | secondary)
+primary | secondary | --status)
 	if ! [ -f "$HOME/.switch_interfaces.conf" ]; then
 		show_example_conf >$CONF
 		info "'$CONF' wasn't existing, I created an empty one. Now, use:\n\
@@ -172,7 +175,7 @@ secondary)
 	switch_intf "$PRIMARY_INTF" "$SECONDARY_INTF"
 	switch_service "$PRIMARY_SERVICE" "$SECONDARY_SERVICE"
 	;;
---status) status ;;
+--status) status "$PRIMARY_INTF" "$SECONDARY_INTF" "$PRIMARY_SERVICE" "$SECONDARY_SERVICE" ;;
 --edit)
 	EDITOR=${EDITOR:-vim}
 	"$EDITOR" $CONF
