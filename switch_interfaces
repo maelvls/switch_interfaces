@@ -92,11 +92,11 @@ done
 
 # status <primary_intf> <secondary_intf> [<primary_service> <secondary_service>]
 status() {
-	echo -e "${gray}PRIMARY_INTF:${end}" $(nmcli device show "$1" | grep "STATE")
-	echo -e "${gray}SECONDARY_INTF:${end}" $(nmcli device show "$2" | grep "STATE")
+	echo -e "${gray}PRIMARY_INTF: $(nmcli device show "$1" | grep -q 'STATE.*(connected)' && echo "$green" || echo "$red")$1${end}" "$(nmcli device show "$1" | grep "STATE" | tr -s " ")"
+	echo -e "${gray}SECONDR_INTF: $(nmcli device show "$2" | grep -q 'STATE.*(connected)' && echo "$green" || echo "$red")$2${end}" "$(nmcli device show "$2" | grep "STATE" | tr -s " ")"
 	if [ -n "$3" ] && [ -n "$4" ]; then
-		echo -e "${gray}cntlm:${end}" $(service $3 status | grep "Active:")
-		echo -e "${gray}squid:${end}" $(service $4 status | grep "Active:")
+		echo -e "${gray}PRIMARY_SERVICE: $(service "$3" status 2>/dev/null | grep -q 'Active:.*active.*running' && echo "$green" || echo "$red")$3${end}" $(service "$3" status | grep "Active:" | tr -s " ")
+		echo -e "${gray}SECONDR_SERVICE: $(service "$4" status 2>/dev/null | grep -q 'Active:.*active.*running' && echo "$green" || echo "$red")$4${end}" $(service "$4" status | grep "Active:" | tr -s " ")
 	fi
 }
 
