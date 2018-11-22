@@ -110,21 +110,41 @@ mytimeout() {
 switch_intf() {
 	from_intf=$1
 	to_intf=$2
+
 	if nmcli device show "$from_intf" | grep -q "STATE.*(disconnected)"; then
 		info "$from_intf already disconnected"
-	elif [ 124 = "$(mytimeout $TIMEOUT nmcli device disconnect "$from_intf")" ]; then
-		error "$from_intf couldn't be disconnected after $TIMEOUT. Is it available?"
-		exit 1
 	else
-		ok "$from_intf has been corectly disconnected"
+		res="$(mytimeout $TIMEOUT nmcli device disconnect "$from_intf")"
+		if [ 124 = "$res" ]; then
+			error "$from_intf couldn't be disconnected after $TIMEOUT. Is it available?"
+			exit 1
+		elif [ 10 = "$res" ]; then
+			error "$from_intf is not available."
+			exit 1
+		elif [ 0 != "$res" ]; then
+			error "$from_intf: unknown error (from 'timeout' or 'nmcli'): $res"
+			exit 1
+		else
+			ok "$from_intf has been corectly disconnected"
+		fi
 	fi
+
 	if nmcli device show "$to_intf" | grep -q "STATE.*(connected)"; then
-		warn "$from_intf already connected"
-	elif [ 124 = "$(mytimeout $TIMEOUT nmcli device connect "$to_intf")" ]; then
-		error "$to_intf couldn't be disconnected after $TIMEOUT. Is it available?"
-		exit 1
+		info "$to_intf already connected"
 	else
-		ok "$to_intf has been corectly connected"
+		res="$(mytimeout $TIMEOUT nmcli device connect "$to_intf")"
+		if [ 124 -eq "$res" ]; then
+			error "$to_intf couldn't be connected after $TIMEOUT. Is it available?"
+			exit 1
+		elif [ 10 -eq "$res" ]; then
+			error "$to_intf is not available."
+			exit 1
+		elif [ 0 -ne "$res" ]; then
+			error "$to_intf: unknown error (from 'timeout' or 'nmcli'): $res"
+			exit 1
+		else
+			ok "$to_intf has been corectly connected"
+		fi
 	fi
 }
 
