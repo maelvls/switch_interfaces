@@ -103,7 +103,7 @@ status() {
 # same input as GNU coreutils timeout
 mytimeout() {
 	DURATION=$1 && shift
-	echo $(bash -c "timeout $DURATION $*; echo \$?")
+	echo $(bash -c "timeout $DURATION $* >/dev/null; echo \$?")
 }
 
 # switch_intf <from_intf> <to_intf>
@@ -115,13 +115,13 @@ switch_intf() {
 		info "$from_intf already disconnected"
 	else
 		res="$(mytimeout $TIMEOUT nmcli device disconnect "$from_intf")"
-		if [ 124 = "$res" ]; then
-			error "$from_intf couldn't be disconnected after $TIMEOUT. Is it available?"
+		if [ 124 -eq $res ]; then
+			warn "$from_intf couldn't be disconnected after $TIMEOUT. Skipping."
 			exit 1
-		elif [ 10 = "$res" ]; then
-			error "$from_intf is not available."
+		elif [ 10 -eq $res ]; then
+			warn "$from_intf is not available, skipping."
 			exit 1
-		elif [ 0 != "$res" ]; then
+		elif [ 0 -ne $res ]; then
 			error "$from_intf: unknown error (from 'timeout' or 'nmcli'): $res"
 			exit 1
 		else
@@ -133,13 +133,13 @@ switch_intf() {
 		info "$to_intf already connected"
 	else
 		res="$(mytimeout $TIMEOUT nmcli device connect "$to_intf")"
-		if [ 124 -eq "$res" ]; then
+		if [ 124 -eq $res ]; then
 			error "$to_intf couldn't be connected after $TIMEOUT. Is it available?"
 			exit 1
-		elif [ 10 -eq "$res" ]; then
+		elif [ 10 -eq $res ]; then
 			error "$to_intf is not available."
 			exit 1
-		elif [ 0 -ne "$res" ]; then
+		elif [ 0 -ne $res ]; then
 			error "$to_intf: unknown error (from 'timeout' or 'nmcli'): $res"
 			exit 1
 		else
